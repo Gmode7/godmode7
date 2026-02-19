@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+prisma/dev.db
+prisma/dev.db-journal
+*.log
+dist
+.cache
+AUDIT_REPORT.md

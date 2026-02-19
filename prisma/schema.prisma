@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  clientId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id                 String     @id @default(uuid())
+  projectId          String
+  project            Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  strategy           String
+  riskClassification String
+  currentState       String     @default("INTAKE_PENDING")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  artifacts          Artifact[]
+  gates              Gate[]
+
+  @@index([projectId])
+}
+
+model Artifact {
+  id        String   @id @default(uuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type      String
+  content   String
+  hash      String
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+  @@index([jobId, type])
+}
+
+model Gate {
+  id        String    @id @default(uuid())
+  jobId     String
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  gateType  String
+  status    String    @default("PENDING")
+  reason    String?
+  checkedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([jobId, gateType])
+}
+
+model AgentIdentity {
+  id             String   @id @default(uuid())
+  name           String
+  role           String
+  plan           String   @default("basic")
+  isActive       Boolean  @default(true)
+  provider       String   @default("none") // openai, kimi, claude, none
+  isReady        Boolean  @default(false)
+  readinessNote  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  apiKeys        ApiKey[]
+}
+
+model ApiKey {
+  id        String        @id @default(uuid())
+  agentId   String
+  agent     AgentIdentity @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name      String
+  keyHash   String        @unique
+  scopes    String
+  isActive  Boolean       @default(true)
+  expiresAt DateTime?
+  createdAt DateTime      @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

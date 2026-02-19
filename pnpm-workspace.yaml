@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Allow only these packages to run install/build scripts (hardening)
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - esbuild

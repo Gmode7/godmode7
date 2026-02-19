@@ -1,0 +1,34 @@
+{
+  "name": "ai-native-backend",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @ai-native/api dev",
+    "dev:web": "pnpm --filter @ai-native/web dev",
+    "dev:all": "concurrently \"pnpm dev\" \"sleep 2 && pnpm dev:web\"",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "bootstrap": "tsx scripts/bootstrap.js",
+    "setup": "pnpm install && mkdir -p data && pnpm db:generate && pnpm db:push && pnpm bootstrap",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
+    "prisma": "5.22.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "cors": "^2.8.6",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "zod": "^3.25.76"
+  },
+  "pnpm": {}
+}
