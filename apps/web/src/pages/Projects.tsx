@@ -1,28 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Calendar, Trash2, Loader2 } from 'lucide-react';
+import { FolderKanban, Plus, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
-import { Badge } from '../components/ui/Badge';
 import { api } from '../lib/api';
-import { toast } from '../components/ui/Toast';
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  clientId: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { useToast } from '../hooks/useToast';
+import { formatDate } from '../lib/utils';
+import type { Project } from '../types';
 
 export function Projects() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newProject, setNewProject] = useState({ name: '', description: '' });
-  const [creating, setCreating] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  
+  // Form state
+  const [name, setName] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     loadProjects();
@@ -34,7 +33,7 @@ export function Projects() {
       const data = await api.getProjects();
       setProjects(data.projects || []);
     } catch (err) {
-      toast('Failed to load projects', 'error');
+      showToast('Failed to load projects', 'error');
     } finally {
       setLoading(false);
     }
@@ -42,164 +41,130 @@ export function Projects() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProject.name.trim()) return;
-
     try {
-      setCreating(true);
-      await api.createProject({
-        name: newProject.name,
-        description: newProject.description || undefined,
-      });
-      toast('Project created successfully', 'success');
-      setShowCreateModal(false);
-      setNewProject({ name: '', description: '' });
+      await api.createProject({ name, description, clientId: clientId || 'default' });
+      showToast('Project created successfully');
+      setIsModalOpen(false);
+      resetForm();
       loadProjects();
     } catch (err) {
-      toast('Failed to create project', 'error');
-    } finally {
-      setCreating(false);
+      showToast('Failed to create project', 'error');
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
-
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this project?')) return;
     try {
+      setIsDeleting(id);
       await api.deleteProject(id);
-      toast('Project deleted', 'success');
+      showToast('Project deleted');
       loadProjects();
     } catch (err) {
-      toast('Failed to delete project', 'error');
+      showToast('Failed to delete project', 'error');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+  const resetForm = () => {
+    setName('');
+    setClientId('');
+    setDescription('');
   };
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Projects</h1>
-          <p className="text-gray-400">Manage your development projects</p>
+          <h1 className="text-2xl font-bold">Projects</h1>
+          <p className="text-gray-400 text-sm mt-1">Manage your software development initiatives.</p>
         </div>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          icon={<Plus className="w-5 h-5" />}
-        >
-          New Project
+        <Button onClick={() => setIsModalOpen(true)} className="gap-2">
+          <Plus size={16}/> Create Project
         </Button>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <Card key={i} className="p-6 h-48 animate-pulse bg-white/5" />
+          ))}
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-20 bg-gray-900/30 border border-white/5 rounded-2xl">
-          <div className="w-20 h-20 bg-violet-500/10 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-            <FolderOpen className="w-10 h-10 text-violet-400" />
-          </div>
-          <h3 className="text-xl font-semibold text-white mb-2">No projects yet</h3>
-          <p className="text-gray-400 mb-6">Create your first project to get started</p>
-          <Button onClick={() => setShowCreateModal(true)} icon={<Plus className="w-5 h-5" />}>
-            Create Project
+        <Card className="p-12 text-center">
+          <FolderKanban size={48} className="mx-auto mb-4 text-gray-600" />
+          <h3 className="text-lg font-semibold text-white mb-2">No projects yet</h3>
+          <p className="text-gray-400 mb-6">Create your first project to start the AI pipeline.</p>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus size={16} className="mr-2" /> Create Project
           </Button>
-        </div>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <div
-              key={project.id}
-              className="group bg-gray-900/50 border border-white/10 rounded-2xl p-6 hover:border-violet-500/30 transition-all cursor-pointer"
-              onClick={() => navigate(`/projects/${project.id}`)}
+          {projects.map(project => (
+            <Card 
+              key={project.id} 
+              onClick={() => navigate(`/projects/${project.id}`)} 
+              className="p-6 flex flex-col h-full group"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center">
-                  <FolderOpen className="w-6 h-6 text-violet-400" />
+                <div className="p-3 bg-violet-500/10 text-violet-400 rounded-lg">
+                  <FolderKanban size={24} />
                 </div>
-                <button
+                <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(project.id, project.name);
+                    handleDelete(project.id);
                   }}
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                  disabled={isDeleting === project.id}
+                  className="text-gray-500 hover:text-rose-400 transition-colors p-1"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {isDeleting === project.id ? '...' : <Trash2 size={18}/>}
                 </button>
               </div>
-
-              <h3 className="text-lg font-semibold text-white mb-2">{project.name}</h3>
-              
-              {project.description && (
-                <p className="text-sm text-gray-400 mb-4 line-clamp-2">{project.description}</p>
-              )}
-
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Created {formatDate(project.createdAt)}</span>
+              <h3 className="text-lg font-semibold mb-2 group-hover:text-violet-400 transition-colors">{project.name}</h3>
+              <p className="text-sm text-gray-400 line-clamp-2 mb-6 flex-grow">{project.description || 'No description'}</p>
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-gray-500">
+                <span>Client: {project.clientId}</span>
+                <span>{formatDate(project.createdAt)}</span>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
-      {/* Create Modal */}
-      <Modal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        title="Create New Project"
-      >
-        <form onSubmit={handleCreate} className="space-y-4">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Project">
+        <form className="space-y-4" onSubmit={handleCreate}>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Project Name *
-            </label>
-            <input
-              type="text"
-              value={newProject.name}
-              onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
-              placeholder="My Awesome Project"
-              required
+            <label className="block text-sm font-medium text-gray-300 mb-1">Project Name *</label>
+            <Input 
+              autoFocus 
+              placeholder="e.g. Nexus Payment Gateway" 
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required 
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Description
-            </label>
-            <textarea
-              value={newProject.description}
-              onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
-              placeholder="Optional description..."
-              rows={3}
+            <label className="block text-sm font-medium text-gray-300 mb-1">Client ID</label>
+            <Input 
+              placeholder="e.g. cli-12345" 
+              value={clientId}
+              onChange={e => setClientId(e.target.value)}
             />
           </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowCreateModal(false)}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              loading={creating}
-              disabled={!newProject.name.trim()}
-              className="flex-1"
-            >
-              Create Project
-            </Button>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+            <textarea 
+              className="flex w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 min-h-[100px]"
+              placeholder="Brief description of the project..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button type="submit">Create Project</Button>
           </div>
         </form>
       </Modal>

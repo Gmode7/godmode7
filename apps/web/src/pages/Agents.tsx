@@ -1,44 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Bot, CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { api } from '../lib/api';
-import { toast } from '../components/ui/Toast';
-
-interface Agent {
-  id: string;
-  name: string;
-  role: string;
-  provider: string;
-  isActive: boolean;
-  isReady: boolean;
-  readinessNote?: string;
-}
-
-interface AgentStatus extends Agent {
-  missingEnv: string[];
-  overallReady: boolean;
-}
-
-const providerIcons: Record<string, string> = {
-  openai: '🤖',
-  kimi: '🌙',
-  claude: '⚡',
-  none: '🔧',
-};
-
-const providerNames: Record<string, string> = {
-  openai: 'OpenAI',
-  kimi: 'Kimi (Moonshot)',
-  claude: 'Claude (Anthropic)',
-  none: 'No LLM',
-};
+import { useToast } from '../hooks/useToast';
+import { cx } from '../lib/utils';
+import type { Agent } from '../types';
 
 export function Agents() {
-  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const { showToast } = useToast();
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toggling, setToggling] = useState<string | null>(null);
-  const [overallOk, setOverallOk] = useState(false);
 
   useEffect(() => {
     loadAgents();
@@ -47,201 +20,90 @@ export function Agents() {
   const loadAgents = async () => {
     try {
       setLoading(true);
-      const data = await api.getAgentReadiness();
+      const data = await api.getAgents();
       setAgents(data.agents || []);
-      setOverallOk(data.ok);
     } catch (err) {
-      toast('Failed to load agent status', 'error');
+      showToast('Failed to load agents', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleReady = async (agent: AgentStatus) => {
+  const handleToggleReady = async (agent: Agent) => {
     try {
-      setToggling(agent.id);
-      await api.setAgentReady(agent.id, !agent.isReady);
-      toast(`Agent ${agent.isReady ? 'marked not ready' : 'marked ready'}`, 'success');
+      await api.setAgentReady(agent.id, !agent.isReady, 'Toggled by user');
+      showToast(`${agent.name} ${agent.isReady ? 'marked not ready' : 'is now ready'}`);
       loadAgents();
     } catch (err) {
-      toast('Failed to update agent status', 'error');
-    } finally {
-      setToggling(null);
+      showToast('Failed to update agent', 'error');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">AI Agents Matrix</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1, 2, 3, 4, 5, 6, 7].map(i => (
+            <Card key={i} className="p-6 h-64 animate-pulse bg-white/5" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-6xl">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Agent Registry</h1>
-          <p className="text-gray-400">
-            Manage AI agent readiness and configuration
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          onClick={loadAgents}
-          icon={<RefreshCw className="w-4 h-4" />}
-        >
-          Refresh
-        </Button>
-      </div>
-
-      {/* Overall Status */}
-      <div className={`p-6 rounded-2xl border mb-8 ${overallOk ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-        <div className="flex items-center gap-4">
-          {overallOk ? (
-            <CheckCircle className="w-10 h-10 text-emerald-400" />
-          ) : (
-            <AlertTriangle className="w-10 h-10 text-amber-400" />
-          )}
-          <div>
-            <h2 className={`text-xl font-semibold ${overallOk ? 'text-emerald-300' : 'text-amber-300'}`}>
-              {overallOk ? 'All Systems Ready' : 'Configuration Pending'}
-            </h2>
-            <p className={`mt-1 ${overallOk ? 'text-emerald-200/70' : 'text-amber-200/70'}`}>
-              {overallOk 
-                ? 'All agents are configured and ready to accept tasks.'
-                : 'Some agents are missing required API keys. Add keys to Replit Secrets to enable them.'}
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold">AI Agents Matrix</h1>
+          <p className="text-gray-400 text-sm mt-1">Manage and monitor the 7 specialized AI agents in the GM7 pipeline.</p>
         </div>
       </div>
 
-      {/* Required Environment Variables */}
-      <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-white mb-4">Required Environment Variables</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">🤖</span>
-              <span className="font-medium text-white">OpenAI</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {agents.map(agent => (
+          <Card key={agent.id} className="p-6 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4">
+              <div className={cx(
+                "w-2.5 h-2.5 rounded-full shadow-[0_0_8px]",
+                agent.isReady ? "bg-emerald-500 shadow-emerald-500/50" : "bg-amber-500 shadow-amber-500/50"
+              )} />
             </div>
-            <code className="text-sm text-violet-300">OPENAI_API_KEY</code>
-            <p className="text-xs text-gray-500 mt-1">For Intake, PM, QA, Security</p>
-          </div>
-          <div className="p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">🌙</span>
-              <span className="font-medium text-white">Kimi</span>
+            
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-violet-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+               <Bot size={28} className={agent.isReady ? "text-violet-400" : "text-gray-500"} />
             </div>
-            <code className="text-sm text-violet-300">KIMI_API_KEY</code>
-            <p className="text-xs text-gray-500 mt-1">For Architect, DevOps, Tech Writer</p>
-          </div>
-          <div className="p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">⚡</span>
-              <span className="font-medium text-white">Claude</span>
+            
+            <h3 className="text-lg font-bold text-white mb-1">{agent.name}</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{agent.stage} Stage</Badge>
             </div>
-            <code className="text-sm text-violet-300">ANTHROPIC_API_KEY</code>
-            <p className="text-xs text-gray-500 mt-1">For Software Engineer</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Agent Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {agents.map((agent) => (
-          <div
-            key={agent.id}
-            className={`p-6 rounded-2xl border transition-all ${
-              agent.overallReady
-                ? 'bg-emerald-500/5 border-emerald-500/20'
-                : 'bg-gray-900/50 border-white/10'
-            }`}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center text-2xl">
-                  {providerIcons[agent.provider] || '🔧'}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">{agent.name}</h3>
-                  <p className="text-sm text-gray-400">{providerNames[agent.provider]}</p>
-                </div>
+            
+            <div className="space-y-2 text-sm text-gray-400 bg-black/20 p-3 rounded-lg border border-white/5">
+              <div className="flex justify-between">
+                <span>Provider:</span>
+                <span className="text-gray-200">{agent.provider}</span>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <Badge variant={agent.overallReady ? 'success' : 'warning'}>
-                  {agent.overallReady ? 'Ready' : 'Not Ready'}
-                </Badge>
-                <button
-                  onClick={() => toggleReady(agent)}
-                  disabled={toggling === agent.id}
-                  className="text-xs text-violet-400 hover:text-violet-300 disabled:opacity-50"
-                >
-                  {toggling === agent.id ? 'Updating...' : agent.isReady ? 'Mark Not Ready' : 'Mark Ready'}
-                </button>
-              </div>
-            </div>
-
-            {/* Status Details */}
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                {agent.isActive ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-red-400" />
-                )}
-                <span className={agent.isActive ? 'text-gray-300' : 'text-red-400'}>
-                  Active
+              <div className="flex justify-between">
+                <span>Status:</span>
+                <span className={agent.isActive ? "text-emerald-400" : "text-gray-500"}>
+                  {agent.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
-              
-              <div className="flex items-center gap-2">
-                {agent.isReady ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-gray-500" />
-                )}
-                <span className={agent.isReady ? 'text-gray-300' : 'text-gray-500'}>
-                  Marked Ready
-                </span>
-              </div>
-
-              {agent.missingEnv.length > 0 && (
-                <div className="flex items-start gap-2 mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-400 font-medium">Missing Environment Variables:</p>
-                    <ul className="mt-1 space-y-1">
-                      {agent.missingEnv.map((env) => (
-                        <li key={env} className="text-red-300/80 font-mono text-xs">
-                          {env}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {agent.readinessNote && (
-                <p className="text-gray-500 mt-2 italic">
-                  Note: {agent.readinessNote}
-                </p>
-              )}
             </div>
-          </div>
+
+            <div className="mt-6">
+               <Button 
+                variant={agent.isReady ? 'secondary' : 'primary'} 
+                className="w-full"
+                onClick={() => handleToggleReady(agent)}
+               >
+                 {agent.isReady ? 'Reconfigure' : 'Initialize Agent'}
+               </Button>
+            </div>
+          </Card>
         ))}
-      </div>
-
-      {/* Info Box */}
-      <div className="mt-8 p-6 bg-violet-500/10 border border-violet-500/20 rounded-2xl">
-        <h3 className="font-semibold text-violet-300 mb-2">About Agent Readiness</h3>
-        <ul className="space-y-2 text-sm text-violet-200/70">
-          <li>• An agent is "ready" when it's active, marked ready, and has all required API keys.</li>
-          <li>• You can manually toggle the "ready" flag to take an agent offline for maintenance.</li>
-          <li>• API keys are configured on the server side (Replit Secrets) - not in this UI.</li>
-          <li>• Missing keys will be added at the end of the setup process.</li>
-        </ul>
       </div>
     </div>
   );

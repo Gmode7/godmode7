@@ -1,413 +1,298 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, FileText, Shield, Play, X, ChevronRight } from 'lucide-react';
+import { ChevronRight, Rocket, Shield, XCircle, CheckCircle2, CircleDashed, FileText, Bot, Terminal } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
+import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { MarkdownViewer } from '../components/MarkdownViewer';
+import { MarkdownRenderer } from '../components/ui/MarkdownRenderer';
 import { api } from '../lib/api';
-import { toast } from '../components/ui/Toast';
-
-interface Job {
-  id: string;
-  projectId: string;
-  strategy: string;
-  riskClassification: string;
-  currentState: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Artifact {
-  id: string;
-  type: string;
-  content: any;
-  hash: string;
-  createdAt: string;
-}
-
-interface Gate {
-  id: string;
-  gateType: string;
-  status: 'PENDING' | 'PASS' | 'FAIL';
-  reason?: string;
-  checkedAt?: string;
-}
-
-const agentButtons = [
-  {
-    category: 'Intake',
-    agents: [
-      { id: 'intake-questions', name: 'Questions', icon: '❓', endpoint: 'intake/questions' },
-      { id: 'intake-brief', name: 'Brief', icon: '📋', endpoint: 'intake/brief' },
-    ]
-  },
-  {
-    category: 'Product',
-    agents: [
-      { id: 'pm-prd', name: 'PRD', icon: '📄', endpoint: 'pm/prd' },
-      { id: 'pm-backlog', name: 'Backlog', icon: '📚', endpoint: 'pm/backlog' },
-    ]
-  },
-  {
-    category: 'Architecture',
-    agents: [
-      { id: 'tech-arch', name: 'ARCH', icon: '🏗️', endpoint: 'tech/arch' },
-      { id: 'tech-adrs', name: 'ADRs', icon: '📝', endpoint: 'tech/adrs' },
-    ]
-  },
-  {
-    category: 'Engineering',
-    agents: [
-      { id: 'eng-plan', name: 'Plan', icon: '🔧', endpoint: 'eng/plan' },
-      { id: 'eng-patch', name: 'Patch', icon: '🔨', endpoint: 'eng/patch' },
-      { id: 'eng-tests', name: 'Tests', icon: '🧪', endpoint: 'eng/tests' },
-    ]
-  },
-  {
-    category: 'QA',
-    agents: [
-      { id: 'qa-matrix', name: 'Matrix', icon: '✅', endpoint: 'qa/matrix' },
-      { id: 'qa-report', name: 'Report', icon: '📊', endpoint: 'qa/report' },
-      { id: 'qa-checklist', name: 'Checklist', icon: '☑️', endpoint: 'qa/checklist' },
-    ]
-  },
-  {
-    category: 'Security',
-    agents: [
-      { id: 'security-threat', name: 'Threat Model', icon: '🛡️', endpoint: 'security/threat-model' },
-      { id: 'security-findings', name: 'Findings', icon: '🔍', endpoint: 'security/findings' },
-      { id: 'security-fix', name: 'Fix Plan', icon: '🔒', endpoint: 'security/fix-plan' },
-    ]
-  },
-  {
-    category: 'Documentation',
-    agents: [
-      { id: 'docs-readme', name: 'README', icon: '📖', endpoint: 'docs/readme' },
-      { id: 'docs-api', name: 'API Docs', icon: '📑', endpoint: 'docs/api' },
-      { id: 'docs-guide', name: 'Guide', icon: '📕', endpoint: 'docs/guide' },
-      { id: 'docs-changelog', name: 'Changelog', icon: '📰', endpoint: 'docs/changelog' },
-    ]
-  },
-];
+import { useToast } from '../hooks/useToast';
+import { cx, formatDate, getStatusColor, PIPELINE_STAGES } from '../lib/utils';
+import type { Job, Project, Agent, Artifact } from '../types';
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [job, setJob] = useState<Job | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [gates, setGates] = useState<Gate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [runningAgent, setRunningAgent] = useState<string | null>(null);
-  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
+  const [activeTab, setActiveTab] = useState<'artifacts' | 'agent' | 'logs'>('artifacts');
+  const [pulse, setPulse] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadData();
+      // Poll for updates if job is active
+      const interval = setInterval(() => {
+        if (job && job.currentState !== 'DONE' && job.currentState !== 'FAILED') {
+          loadData();
+        }
+        setPulse(p => !p);
+      }, 3000);
+      return () => clearInterval(interval);
     }
-  }, [id]);
+  }, [id, job?.currentState]);
 
   const loadData = async () => {
     if (!id) return;
     try {
       setLoading(true);
-      const [jobData, artifactsData, gatesData] = await Promise.all([
+      const [jobData, projectsData, agentsData, artifactsData] = await Promise.all([
         api.getJob(id),
+        api.getProjects(),
+        api.getAgents(),
         api.getArtifacts(id),
-        api.getGates(id),
       ]);
+      
       setJob(jobData);
+      setProject(projectsData.projects.find((p: Project) => p.id === jobData.projectId) || null);
+      setAgents(agentsData.agents || []);
       setArtifacts(artifactsData.artifacts || []);
-      setGates(gatesData.gates || []);
     } catch (err) {
-      toast('Failed to load job data', 'error');
+      showToast('Failed to load job', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const runAgent = async (endpoint: string) => {
+  const handleRetry = async () => {
     if (!id) return;
-    setRunningAgent(endpoint);
-    
     try {
-      // Map endpoint to api function
-      const endpointMap: Record<string, () => Promise<any>> = {
-        'intake/questions': () => api.agents.generatePRD(id, { idea: 'placeholder' }), // Adjust as needed
-        'pm/prd': () => api.agents.generatePRD(id),
-        'pm/backlog': () => api.agents.generateBacklog(id),
-        'tech/arch': () => api.agents.generateArch(id),
-        'tech/adrs': () => api.agents.generateADRs(id, { decisions: ['Architecture decision'] }),
-        'eng/plan': () => api.agents.generatePlan(id, { request: 'Generate engineering plan' }),
-        'eng/patch': () => api.agents.generatePatch(id),
-        'eng/tests': () => api.agents.generateTests(id),
-        'qa/matrix': () => api.agents.generateMatrix(id),
-        'qa/report': () => api.agents.generateReport(id),
-        'qa/checklist': () => api.agents.generateChecklist(id),
-        'security/threat-model': () => api.agents.generateThreatModel(id),
-        'security/findings': () => api.agents.generateFindings(id),
-        'security/fix-plan': () => api.agents.generateFixPlan(id),
-        'docs/readme': () => api.agents.generateReadme(id),
-        'docs/api': () => api.agents.generateApiDocs(id),
-        'docs/guide': () => api.agents.generateGuide(id),
-        'docs/changelog': () => api.agents.generateChangelog(id),
-      };
-
-      const fn = endpointMap[endpoint];
-      if (fn) {
-        await fn();
-        toast('Agent completed successfully', 'success');
-        loadData();
-      }
-    } catch (err: any) {
-      if (err.status === 503) {
-        toast('Provider not configured yet', 'warning');
-      } else {
-        toast(err.message || 'Agent failed', 'error');
-      }
-    } finally {
-      setRunningAgent(null);
+      await api.retryPipeline(id);
+      showToast('Pipeline retry initiated');
+      loadData();
+    } catch (err) {
+      showToast('Failed to retry pipeline', 'error');
     }
   };
 
-  const getArtifactDisplayName = (type: string) => {
-    const names: Record<string, string> = {
-      intake_questions: 'Intake Questions',
-      intake_brief: 'Intake Brief',
-      prd: 'PRD',
-      backlog: 'Backlog',
-      architecture: 'ARCH',
-      adr: 'ADR',
-      engineering_plan: 'Engineering Plan',
-      patch: 'PATCH',
-      test_plan: 'Test Plan',
-      qa_matrix: 'QA Matrix',
-      qa_report: 'QA Report',
-      qa_checklist: 'QA Checklist',
-      threat_model: 'Threat Model',
-      security_findings: 'Security Findings',
-      security_fix_plan: 'Fix Plan',
-      docs_readme: 'README',
-      docs_api: 'API Docs',
-      docs_guide: 'User Guide',
-      docs_changelog: 'Changelog',
-    };
-    return names[type] || type;
-  };
-
-  const getArtifactFilename = (artifact: Artifact) => {
-    if (artifact.content?.filename) return artifact.content.filename;
-    if (artifact.content?.markdown) {
-      const type = artifact.type;
-      const ext = type.includes('patch') ? 'diff' : 'md';
-      return `${type}.${ext}`;
-    }
-    return artifact.type;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const currentStageIndex = job ? PIPELINE_STAGES.indexOf(job.currentState) : -1;
+  const activeAgent = agents.find(a => a.stage === job?.currentState);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
-      </div>
-    );
+    return <div className="p-8 text-center text-gray-500">Loading pipeline...</div>;
   }
 
   if (!job) {
     return (
-      <div className="p-8">
-        <div className="text-center py-20">
-          <h2 className="text-xl text-white mb-2">Job not found</h2>
-          <Button variant="secondary" onClick={() => navigate('/projects')}>
-            Back to Projects
-          </Button>
-        </div>
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-bold text-white mb-2">Job not found</h2>
+        <Button variant="secondary" onClick={() => navigate('/projects')}>
+          Back to Projects
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
+    <div className="space-y-6 animate-in fade-in duration-300">
       {/* Header */}
-      <div className="mb-8">
-        <button
-          onClick={() => navigate(`/projects/${job.projectId}`)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Project
-        </button>
-        
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
-              Job {job.id.slice(0, 8)}
-            </h1>
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span>Strategy: {job.strategy}</span>
-              <span>•</span>
-              <span>Risk: {job.riskClassification}</span>
-              <span>•</span>
-              <Badge variant={job.currentState === 'COMPLETED' ? 'success' : 'info'}>
-                {job.currentState}
-              </Badge>
-            </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#1a1a24] p-6 rounded-xl border border-white/10 shadow-lg">
+        <div>
+          <div className="flex items-center gap-3 text-sm text-gray-400 mb-1">
+            <button onClick={() => navigate('/projects')} className="hover:text-white transition-colors">Projects</button>
+            <ChevronRight size={14} />
+            {project && (
+              <>
+                <button onClick={() => navigate(`/projects/${project.id}`)} className="hover:text-white transition-colors">{project.name}</button>
+                <ChevronRight size={14} />
+              </>
+            )}
+            <span className="text-white">Pipeline: {job.id.slice(0, 8)}</span>
           </div>
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            Pipeline Execution
+            <Badge className={getStatusColor(job.currentState)}>{job.currentState}</Badge>
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" className="gap-2">
+            <Shield size={16}/> Risk: {job.riskClassification}
+          </Button>
+          {job.currentState === 'FAILED' && (
+            <Button variant="danger" className="gap-2" onClick={handleRetry}>
+              <Rocket size={16}/> Retry Pipeline
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column - Agents & Gates */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Run Agents */}
-          <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Play className="w-5 h-5 text-violet-400" />
-              Run Agents
-            </h3>
-            
-            <div className="space-y-4">
-              {agentButtons.map((group) => (
-                <div key={group.category}>
-                  <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                    {group.category}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {group.agents.map((agent) => (
-                      <button
-                        key={agent.id}
-                        onClick={() => runAgent(agent.endpoint)}
-                        disabled={runningAgent === agent.endpoint}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded-lg text-sm text-gray-300 hover:text-white transition-all"
-                      >
-                        {runningAgent === agent.endpoint ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <span>{agent.icon}</span>
-                        )}
-                        {agent.name}
-                      </button>
-                    ))}
+      {/* Stage Visualizer */}
+      <Card className="p-8 overflow-x-auto">
+        <div className="relative flex justify-between items-center min-w-[600px]">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-white/5 rounded-full z-0"></div>
+          <div 
+            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full z-0 transition-all duration-1000 ease-in-out"
+            style={{ width: `${(Math.max(0, currentStageIndex) / (PIPELINE_STAGES.length - 1)) * 100}%` }}
+          ></div>
+
+          {PIPELINE_STAGES.map((stage, index) => {
+            const isCompleted = index < currentStageIndex || job.currentState === 'DONE';
+            const isActive = index === currentStageIndex && job.currentState !== 'DONE' && job.currentState !== 'FAILED';
+            const isFailed = index === currentStageIndex && job.currentState === 'FAILED';
+
+            return (
+              <div key={stage} className="relative z-10 flex flex-col items-center gap-3">
+                <div 
+                  className={cx(
+                    "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 bg-[#12121a]",
+                    isCompleted ? "border-violet-500 text-violet-400" :
+                    isActive ? "border-indigo-400 text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.5)] scale-110" :
+                    isFailed ? "border-rose-500 text-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.5)]" :
+                    "border-white/10 text-gray-500",
+                    (isActive && pulse) && "animate-pulse"
+                  )}
+                >
+                  {isCompleted ? <CheckCircle2 size={20} /> : 
+                   isFailed ? <XCircle size={20} /> :
+                   isActive ? <Rocket size={20} /> :
+                   <CircleDashed size={20} />}
+                </div>
+                <span className={cx(
+                  "text-xs font-bold tracking-wider",
+                  isActive ? "text-indigo-400" : isFailed ? "text-rose-400" : isCompleted ? "text-gray-300" : "text-gray-600"
+                )}>
+                  {stage}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Content Area */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Sidebar Tabs */}
+        <Card className="lg:w-64 p-2 flex flex-row lg:flex-col gap-1 flex-shrink-0 overflow-x-auto lg:overflow-visible">
+          <button 
+            onClick={() => setActiveTab('artifacts')}
+            className={cx(
+              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap",
+              activeTab === 'artifacts' ? "bg-violet-500/10 text-violet-400" : "text-gray-400 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <FileText size={18} /> Generated Artifacts
+          </button>
+          <button 
+            onClick={() => setActiveTab('agent')}
+            className={cx(
+              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap",
+              activeTab === 'agent' ? "bg-violet-500/10 text-violet-400" : "text-gray-400 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Bot size={18} /> Active Agent
+          </button>
+          <button 
+            onClick={() => setActiveTab('logs')}
+            className={cx(
+              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap",
+              activeTab === 'logs' ? "bg-violet-500/10 text-violet-400" : "text-gray-400 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Terminal size={18} /> Activity Logs
+          </button>
+        </Card>
+
+        {/* Tab Content */}
+        <Card className="flex-1 p-6 min-h-[500px]">
+          {activeTab === 'artifacts' && (
+            <div className="h-full flex flex-col space-y-4">
+              <h3 className="text-lg font-semibold flex items-center justify-between">
+                <span>Pipeline Artifacts</span>
+                <span className="text-xs font-normal text-gray-400 bg-white/5 px-2 py-1 rounded">
+                  {artifacts.length} artifacts
+                </span>
+              </h3>
+              {artifacts.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+                  <FileText size={48} className="mb-4 opacity-20" />
+                  <p>No artifacts generated for this job yet.</p>
+                  <p className="text-sm">Artifacts will appear as agents complete their stages.</p>
+                </div>
+              ) : (
+                <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                  {artifacts.map(artifact => (
+                    <div key={artifact.id} className="border border-white/10 rounded-xl overflow-hidden">
+                      <div className="bg-[#12121a] px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline">{artifact.type}</Badge>
+                          <span className="font-semibold text-sm text-gray-200">Artifact #{artifact.id.slice(0, 8)}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{formatDate(artifact.createdAt)}</span>
+                      </div>
+                      <div className="p-6 bg-[#0a0a0f]/50">
+                        <MarkdownRenderer content={artifact.content} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'agent' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold">Agent Diagnostics</h3>
+              {job.currentState === 'DONE' ? (
+                <div className="text-gray-400">Pipeline is complete. All agents are idle.</div>
+              ) : job.currentState === 'FAILED' ? (
+                <div className="text-rose-400">Pipeline failed. Check logs for details.</div>
+              ) : activeAgent ? (
+                <div className="flex gap-6 items-start">
+                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-violet-600/20 to-indigo-600/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0 relative">
+                    <Bot size={40} className="text-violet-400 animate-pulse" />
+                    <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full border-4 border-[#1a1a24]"></div>
+                  </div>
+                  <div className="space-y-4 flex-1">
+                    <div>
+                      <h4 className="text-2xl font-bold text-white mb-1">{activeAgent.name}</h4>
+                      <p className="text-violet-400 text-sm">Specialization: {activeAgent.stage} Stage</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-gray-500 block mb-1">Provider</span>
+                        <span className="text-sm text-gray-300">{activeAgent.provider}</span>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-gray-500 block mb-1">Status</span>
+                        <span className="text-sm text-emerald-400">{activeAgent.isActive ? 'Active' : 'Inactive'}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="text-gray-400">No agent currently assigned to this stage.</div>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Gates */}
-          <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-violet-400" />
-              Gates
-            </h3>
-            
-            {gates.length === 0 ? (
-              <p className="text-gray-500 text-sm">No gates yet</p>
-            ) : (
-              <div className="space-y-2">
-                {gates.map((gate) => (
-                  <div
-                    key={gate.id}
-                    className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
-                  >
-                    <span className="text-sm text-gray-300">{gate.gateType}</span>
-                    <Badge
-                      variant={
-                        gate.status === 'PASS'
-                          ? 'success'
-                          : gate.status === 'FAIL'
-                          ? 'error'
-                          : 'warning'
-                      }
-                      size="sm"
-                    >
-                      {gate.status}
-                    </Badge>
-                  </div>
-                ))}
+          {activeTab === 'logs' && (
+            <div className="h-full flex flex-col font-mono text-xs">
+              <h3 className="text-lg font-semibold font-sans mb-4">Execution Stream</h3>
+              <div className="bg-[#0a0a0f] p-4 rounded-xl border border-white/10 flex-1 overflow-y-auto text-gray-400 space-y-2">
+                <div><span className="text-blue-400">[{formatDate(job.createdAt)}]</span> [SYSTEM] Pipeline initialized with strategy {job.strategy}</div>
+                <div><span className="text-blue-400">[{formatDate(job.createdAt)}]</span> [SYSTEM] Risk classification: {job.riskClassification}</div>
+                <div><span className="text-emerald-400">[{formatDate(job.updatedAt)}]</span> [SYSTEM] Job created successfully</div>
+                {job.currentState !== 'INTAKE' && (
+                  <div><span className="text-emerald-400">[{formatDate(job.updatedAt)}]</span> [PIPELINE] Progressing through stages...</div>
+                )}
+                {job.currentState === 'FAILED' && (
+                  <div><span className="text-rose-400">[{formatDate(job.updatedAt)}]</span> [ERROR] Pipeline execution failed</div>
+                )}
+                {job.currentState === 'DONE' && (
+                  <div><span className="text-emerald-400">[{formatDate(job.updatedAt)}]</span> [SYSTEM] Pipeline completed successfully</div>
+                )}
+                <div className="mt-8 text-center text-gray-600">
+                  {job.currentState === 'DONE' || job.currentState === 'FAILED' ? 'End of logs' : 'Waiting for updates...'}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column - Artifacts */}
-        <div className="lg:col-span-2">
-          <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-violet-400" />
-              Artifacts
-              <Badge variant="default">{artifacts.length}</Badge>
-            </h3>
-
-            {artifacts.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">
-                <p className="text-gray-400 mb-2">No artifacts yet</p>
-                <p className="text-sm text-gray-500">
-                  Run an agent from the left panel to generate artifacts
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {artifacts.map((artifact) => (
-                  <div
-                    key={artifact.id}
-                    onClick={() => setSelectedArtifact(artifact)}
-                    className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-xl hover:border-violet-500/30 hover:bg-white/[0.07] transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-violet-500/10 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-violet-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-white">
-                          {getArtifactDisplayName(artifact.type)}
-                        </h4>
-                        <p className="text-sm text-gray-500">
-                          {getArtifactFilename(artifact)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500">
-                        {formatDate(artifact.createdAt)}
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-violet-400 transition-colors" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+        </Card>
       </div>
-
-      {/* Artifact Viewer Modal */}
-      <Modal
-        isOpen={!!selectedArtifact}
-        onClose={() => setSelectedArtifact(null)}
-        title={selectedArtifact ? getArtifactDisplayName(selectedArtifact.type) : ''}
-        size="lg"
-      >
-        {selectedArtifact && (
-          <div className="h-[70vh]">
-            <MarkdownViewer
-              content={selectedArtifact.content?.markdown || JSON.stringify(selectedArtifact.content, null, 2)}
-              filename={getArtifactFilename(selectedArtifact)}
-              onClose={() => setSelectedArtifact(null)}
-            />
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

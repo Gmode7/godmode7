@@ -118,6 +118,10 @@ export const api = {
   getArtifacts: (jobId: string) =>
     fetchWithAuth(`/api/v1/artifacts/job/${jobId}`),
   
+  // Pipeline
+  retryPipeline: (jobId: string) =>
+    fetchWithAuth(`/api/v1/pipeline/${jobId}/retry`, { method: 'POST' }),
+  
   // Gates
   getGates: (jobId: string) =>
     fetchWithAuth(`/api/v1/gates/job/${jobId}`),
@@ -142,11 +146,6 @@ export const api = {
   // Admin - Agents
   getAgents: () => fetchWithAuth('/api/v1/admin/agents'),
   getAgentReadiness: () => fetchWithAuth('/api/v1/admin/agents/readiness'),
-  setAgentReady: (id: string, isReady: boolean, note?: string) =>
-    fetchWithAuth(`/api/v1/admin/agents/${id}/ready`, {
-      method: 'POST',
-      body: JSON.stringify({ isReady, note }),
-    }),
   
   // Pipeline
   pipeline: {
