@@ -7,6 +7,15 @@ export interface AgentConfig {
   outputArtifacts: string[];
   temperature: number;
   maxTokens: number;
+  /**
+   * Model configuration with fallback support (Phase 1)
+   * If provided, orchestrator will use ModelRouter for automatic fallback
+   */
+  model?: {
+    primary: string;
+    fallbacks: string[];
+    fallbackStrategy?: 'sequential' | 'priority' | 'cost-optimized';
+  };
 }
 
 const INTAKE_SYSTEM_PROMPT = `You are the Intake / Account Manager at GM7, a world-class AI software agency.
@@ -413,6 +422,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['intake_brief'],
     temperature: 0.4,
     maxTokens: 4000,
+    model: {
+      primary: 'openai/gpt-4o-mini',
+      fallbacks: ['kimi/kimi-latest'],
+    },
   },
   {
     name: 'PM Agent',
@@ -423,6 +436,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['prd', 'backlog'],
     temperature: 0.4,
     maxTokens: 6000,
+    model: {
+      primary: 'openai/gpt-4o-mini',
+      fallbacks: ['openai/gpt-4o', 'kimi/kimi-latest'],
+    },
   },
   {
     name: 'Architect Agent',
@@ -433,6 +450,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['architecture', 'adr'],
     temperature: 0.3,
     maxTokens: 8000,
+    model: {
+      primary: 'claude/claude-3-5-sonnet-20241022',
+      fallbacks: ['openai/gpt-4o', 'kimi/kimi-latest'],
+    },
   },
   {
     name: 'Engineer Agent',
@@ -443,6 +464,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['engineering_plan', 'patch'],
     temperature: 0.3,
     maxTokens: 8192,
+    model: {
+      primary: 'claude/claude-3-5-sonnet-20241022',
+      fallbacks: ['openai/gpt-4o', 'kimi/kimi-latest'],
+    },
   },
   {
     name: 'QA Agent',
@@ -453,6 +478,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['test_plan', 'qa_matrix', 'qa_report'],
     temperature: 0.3,
     maxTokens: 6000,
+    model: {
+      primary: 'openai/gpt-4o-mini',
+      fallbacks: ['openai/gpt-4o'],
+    },
   },
   {
     name: 'Security Agent',
@@ -463,6 +492,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['threat_model', 'security_findings'],
     temperature: 0.3,
     maxTokens: 6000,
+    model: {
+      primary: 'openai/gpt-4o-mini',
+      fallbacks: ['claude/claude-3-5-sonnet-20241022'],
+    },
   },
   {
     name: 'Docs Agent',
@@ -473,6 +506,10 @@ export const AGENT_CONFIGS: AgentConfig[] = [
     outputArtifacts: ['docs_api', 'docs_readme'],
     temperature: 0.4,
     maxTokens: 8000,
+    model: {
+      primary: 'kimi/kimi-latest',
+      fallbacks: ['openai/gpt-4o', 'openai/gpt-4o-mini'],
+    },
   },
 ];
 

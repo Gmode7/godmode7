@@ -3,6 +3,7 @@ import { hashApiKey, gatesEngine, PIPELINE_STAGES } from '@ai-native/core';
 import { generateMarkdown, callOpenAI } from '../llm/openai.js';
 import { kimiGenerateMarkdown } from '../llm/kimi.js';
 import { claudeGenerate } from '../llm/claude.js';
+import { modelRouter } from '../llm/model-router.js';
 import { getAgentForStage } from './agents.js';
 import { buildPrompt } from './prompt-builder.js';
 import { emitPipelineEvent } from './events.js';
@@ -93,39 +94,55 @@ export class Orchestrator {
       // 4. Build prompt
       const { system, user } = buildPrompt(agent, artifactMap, brief);
 
-      // 5. Call the correct LLM provider
+      // 5. Call LLM with model fallback support (Phase 1)
       let llmResponse: string;
-      switch (agent.provider) {
-        case 'openai':
-          if (stage === 'INTAKE') {
-            llmResponse = await callOpenAI(system, user);
-          } else {
-            llmResponse = await generateMarkdown({
+      
+      // Check if agent has new model config with fallbacks
+      if (agent.model && Array.isArray(agent.model.fallbacks)) {
+        // Use ModelRouter for automatic fallback
+        llmResponse = await modelRouter.generateWithFallback(
+          agent.model,
+          {
+            system,
+            user,
+            temperature: agent.temperature,
+            maxTokens: agent.maxTokens,
+          }
+        );
+      } else {
+        // Legacy: Direct provider call (backward compatibility)
+        switch (agent.provider) {
+          case 'openai':
+            if (stage === 'INTAKE') {
+              llmResponse = await callOpenAI(system, user);
+            } else {
+              llmResponse = await generateMarkdown({
+                system,
+                user,
+                temperature: agent.temperature,
+                maxTokens: agent.maxTokens,
+              });
+            }
+            break;
+          case 'kimi':
+            llmResponse = await kimiGenerateMarkdown({
               system,
               user,
               temperature: agent.temperature,
               maxTokens: agent.maxTokens,
             });
-          }
-          break;
-        case 'kimi':
-          llmResponse = await kimiGenerateMarkdown({
-            system,
-            user,
-            temperature: agent.temperature,
-            maxTokens: agent.maxTokens,
-          });
-          break;
-        case 'claude':
-          llmResponse = await claudeGenerate({
-            system,
-            user,
-            temperature: agent.temperature,
-            maxTokens: agent.maxTokens,
-          });
-          break;
-        default:
-          throw new Error(`Unknown provider: ${agent.provider}`);
+            break;
+          case 'claude':
+            llmResponse = await claudeGenerate({
+              system,
+              user,
+              temperature: agent.temperature,
+              maxTokens: agent.maxTokens,
+            });
+            break;
+          default:
+            throw new Error(`Unknown provider: ${agent.provider}`);
+        }
       }
 
       // 6. Parse XML response into artifacts

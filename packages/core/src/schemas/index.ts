@@ -104,3 +104,9 @@ export const TRANSITION_GATES: Record<string, string[]> = {
   TESTING_COMPLETE: ['SECURITY_REVIEW'],
   DEPLOYED: ['SBOM_AUDIT']
 };
+
+// ═══════════════════════════════════════════════════════
+// Agent Configuration (Phase 1: Model Fallbacks)
+// ═══════════════════════════════════════════════════════
+
+export * from './agent-config.js';
