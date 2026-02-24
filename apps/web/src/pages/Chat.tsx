@@ -1,16 +1,23 @@
 import { useEffect, useState, useRef } from 'react';
-import { BrainCircuit, PlayCircle } from 'lucide-react';
+import { BrainCircuit, PlayCircle, Sparkles, Zap, Lightbulb } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { api } from '../lib/api';
 import { useToast } from '../hooks/useToast';
 import { cx } from '../lib/utils';
+import { MarkdownRenderer } from '../components/ui/MarkdownRenderer';
 
 interface Message {
   id: string;
-  role: 'user' | 'ai';
+  role: 'user' | 'assistant';
   content: string;
   createdAt?: string;
 }
+
+const QUICK_ACTIONS = [
+  { label: 'Build Todo App', icon: Sparkles, prompt: 'build a todo app' },
+  { label: 'Build Chat App', icon: Zap, prompt: 'build a chat app' },
+  { label: 'Check Status', icon: Lightbulb, prompt: 'status' },
+];
 
 export function Chat() {
   const { showToast } = useToast();
@@ -21,6 +28,9 @@ export function Chat() {
 
   useEffect(() => {
     loadMessages();
+    // Auto-refresh every 5 seconds to see pipeline updates
+    const interval = setInterval(loadMessages, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -40,20 +50,24 @@ export function Chat() {
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  const handleSend = async (e?: React.FormEvent, quickPrompt?: string) => {
+    e?.preventDefault();
+    
+    const messageText = quickPrompt || input.trim();
+    if (!messageText || loading) return;
 
-    const userMessage = input.trim();
     setInput('');
     setLoading(true);
 
     // Optimistically add user message
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: messageText 
+    }]);
 
     try {
-      const response = await api.sendChatMessage(userMessage);
-      // Reload messages to get the AI response
+      await api.sendChatMessage(messageText);
       await loadMessages();
     } catch (err) {
       showToast('Failed to send message', 'error');
@@ -83,22 +97,47 @@ export function Chat() {
             <BrainCircuit size={16} className="text-violet-400" />
           </div>
           <div>
-            <h2 className="font-semibold text-white text-sm">Orchestrator Chat</h2>
+            <h2 className="font-semibold text-white text-sm">AI Assistant</h2>
             <p className="text-xs text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Online
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Ready to build
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleClear}>Clear History</Button>
+        <Button variant="ghost" size="sm" onClick={handleClear}>Clear</Button>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-12">
+          <div className="text-center text-gray-500 mt-8">
             <BrainCircuit size={48} className="mx-auto mb-4 opacity-20" />
-            <p>Start a conversation with the GM7 Orchestrator</p>
-            <p className="text-sm mt-2">Ask about projects, jobs, or request pipeline actions</p>
+            <p className="text-lg font-medium text-gray-400 mb-2">What should we build today?</p>
+            <p className="text-sm mb-6">Just type naturally - "build a todo app" or "create a blog"</p>
+            
+            {/* Quick Actions */}
+            <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
+              {QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  onClick={() => handleSend(undefined, action.prompt)}
+                  className="flex items-center gap-2 px-4 py-2 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded-lg text-sm text-violet-300 transition-colors"
+                >
+                  <action.icon size={14} />
+                  {action.label}
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-8 p-4 bg-white/5 rounded-lg text-left max-w-md mx-auto">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Examples you can try:</p>
+              <ul className="text-sm text-gray-400 space-y-1">
+                <li>• "build a todo list app"</li>
+                <li>• "create a chat application"</li>
+                <li>• "I need a blog website"</li>
+                <li>• "make a note-taking app"</li>
+                <li>• "help" - see all commands</li>
+              </ul>
+            </div>
           </div>
         ) : (
           messages.map((msg) => (
@@ -110,12 +149,18 @@ export function Chat() {
               )}
             >
               <div className={cx(
-                "max-w-[80%] rounded-2xl p-4 text-sm shadow-sm",
+                "max-w-[85%] rounded-2xl p-4 shadow-sm",
                 msg.role === 'user' 
                   ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-tr-sm" 
                   : "bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm"
               )}>
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <MarkdownRenderer content={msg.content} />
+                  </div>
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
               </div>
             </div>
           ))
@@ -123,10 +168,11 @@ export function Chat() {
         {loading && (
           <div className="flex justify-start">
             <div className="bg-white/5 border border-white/10 text-gray-200 rounded-2xl rounded-tl-sm p-4">
-              <div className="flex gap-1">
+              <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce"></span>
                 <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
                 <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                <span className="ml-2 text-sm text-gray-400">AI is thinking...</span>
               </div>
             </div>
           </div>
@@ -141,7 +187,7 @@ export function Chat() {
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Ask GM7 to create a project, check status..."
+            placeholder="Try: build a todo app..."
             className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50"
             disabled={loading}
           />
@@ -153,6 +199,9 @@ export function Chat() {
             <PlayCircle size={18} />
           </button>
         </form>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          Type naturally or try: "build a chat app" • "status" • "help"
+        </p>
       </div>
     </div>
   );
