@@ -52,13 +52,16 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(helmet());
 
-const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+// Hardcoded CORS for Vercel + Replit
+const corsOrigins = ['https://gm-7.vercel.app', 'http://localhost:5000', 'http://localhost:5173'];
+const envOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+corsOrigins.push(...envOrigins);
+
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
     if (corsOrigins.length === 0 && !isProduction) return cb(null, true);
-    if (corsOrigins.length === 0 && isProduction) return cb(new Error('CORS blocked'), false);
-    return corsOrigins.includes(origin) ? cb(null, true) : cb(new Error('CORS blocked'), false);
+    return corsOrigins.includes(origin) ? cb(null, true) : cb(new Error('CORS blocked: ' + origin), false);
   },
   credentials: true,
 }));
