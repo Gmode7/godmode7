@@ -1,0 +1,13 @@
+run = "pnpm dev"
+entrypoint = "apps/api/src/index.ts"
+
+[packager]
+language = "nodejs-pnpm"
+
+[languages.typescript]
+pattern = "**/{*.ts,*.tsx}"
+syntax = "typescript"
+
+[deployment]
+run = ["sh", "-c", "pnpm install && pnpm db:generate && pnpm db:push && pnpm bootstrap && pnpm start"]
+build = ["sh", "-c", "pnpm install && pnpm db:generate && pnpm db:push"]
