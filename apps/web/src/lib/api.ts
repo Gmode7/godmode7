@@ -143,6 +143,24 @@ export const api = {
   clearChat: () =>
     fetchWithAuth('/api/v1/chat/messages', { method: 'DELETE' }),
   
+  // Receptionist AI
+  receptionist: {
+    startSession: () =>
+      fetchWithAuth('/api/v1/receptionist/start', { method: 'POST' }),
+    chat: (sessionId: string, message: string) =>
+      fetchWithAuth('/api/v1/receptionist/chat', { 
+        method: 'POST', 
+        body: JSON.stringify({ sessionId, message }) 
+      }),
+    createNow: (sessionId: string) =>
+      fetchWithAuth('/api/v1/receptionist/create-now', { 
+        method: 'POST', 
+        body: JSON.stringify({ sessionId }) 
+      }),
+    getSession: (sessionId: string) =>
+      fetchWithAuth(`/api/v1/receptionist/session/${sessionId}`),
+  },
+  
   // Admin - Agents
   getAgents: () => fetchWithAuth('/api/v1/admin/agents'),
   getAgentReadiness: () => fetchWithAuth('/api/v1/admin/agents/readiness'),

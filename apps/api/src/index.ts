@@ -27,6 +27,7 @@ import jobRoutes from './routes/jobs.js';
 import gateRoutes from './routes/gates.js';
 import artifactRoutes from './routes/artifacts.js';
 import chatRoutes from './routes/chat.js';
+import receptionistRoutes from './routes/receptionist.js';
 
 // ═══════════════════════════════════════════════════════
 // 0. Global Error Handlers
@@ -107,6 +108,7 @@ app.use('/api/v1/jobs', jobRoutes);
 app.use('/api/v1/gates', gateRoutes);
 app.use('/api/v1/artifacts', artifactRoutes);
 app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/receptionist', receptionistRoutes);
 
 // ═══════════════════════════════════════════════════════
 // 5. Serve frontend in production

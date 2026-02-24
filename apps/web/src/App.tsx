@@ -9,6 +9,7 @@ import { Agents } from './pages/Agents';
 import { Settings } from './pages/Settings';
 import { Chat } from './pages/Chat';
 import { Pipeline } from './pages/Pipeline';
+import { Receptionist } from './pages/Receptionist';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/start" element={<Receptionist />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/jobs/:id" element={<JobDetail />} />

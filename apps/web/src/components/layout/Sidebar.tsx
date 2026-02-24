@@ -7,6 +7,8 @@ import {
   MessageSquare,
   Sparkles,
   Workflow,
+  PlusCircle,
+  Rocket,
 } from 'lucide-react';
 
 const navItems = [
@@ -32,6 +34,24 @@ export function Sidebar() {
             <p className="text-xs text-gray-400">AI Software Agency</p>
           </div>
         </div>
+      </div>
+
+      {/* New Project CTA */}
+      <div className="px-4 pt-4">
+        <NavLink
+          to="/start"
+          className={({ isActive }) => `
+            flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all
+            ${isActive 
+              ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25' 
+              : 'bg-violet-600/20 text-violet-300 border border-violet-500/30 hover:bg-violet-600/30'
+            }
+          `}
+        >
+          <Rocket className="w-5 h-5" />
+          <span>New Project</span>
+          <span className="ml-auto text-[10px] bg-white/20 px-1.5 py-0.5 rounded">AI</span>
+        </NavLink>
       </div>
 
       {/* Navigation */}

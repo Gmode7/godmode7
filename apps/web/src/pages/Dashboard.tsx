@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Briefcase, Bot, Plus, PlayCircle, CheckCircle2, XCircle, CircleDashed, ChevronRight } from 'lucide-react';
+import { FolderOpen, Briefcase, Bot, Plus, PlayCircle, CheckCircle2, XCircle, CircleDashed, ChevronRight, Sparkles, MessageCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -68,6 +68,10 @@ export function Dashboard() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl"></div>
         
         <div className="relative z-10 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 text-sm mb-4">
+            <Sparkles size={14} />
+            <span>AI-Powered Project Creation</span>
+          </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
             Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400">GM7 AI Agency</span>
           </h1>
@@ -75,11 +79,11 @@ export function Dashboard() {
             Your automated software development pipeline. Watch 7 specialized AI agents collaborate to plan, build, test, and secure your next big project.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Button onClick={() => navigate('/projects')} className="gap-2">
-              <Plus size={18} /> New Project
+            <Button onClick={() => navigate('/start')} className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500">
+              <MessageCircle size={18} /> Talk to AI Receptionist
             </Button>
             <Button variant="secondary" onClick={() => navigate('/pipeline')} className="gap-2">
-              <PlayCircle size={18} /> View Active Pipeline
+              <PlayCircle size={18} /> View Pipeline
             </Button>
           </div>
         </div>
